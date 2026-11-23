@@ -103,6 +103,13 @@ namespace BoomBlocks {
             BoomBlocksUiBuilder.BuildTutorial(root.transform, new Vector3(0, groundY + 1.95f, 1.2f), viewer, weapon, manager,
                 rack.transform.Find("Tray_BoomAmmo_Normal"), rack.transform.Find("Tray_BoomAmmo_Explosive"), firstTarget, hud.gameObject);
 
+            // To the player's right, out of the way of the targets
+            Vector3 boardOffset = BoomBlocksUiBuilder.HighscoreBoardOffset;
+            BoomBlocksUiBuilder.BuildHighscoreBoard(root.transform, new Vector3(boardOffset.x, groundY, boardOffset.z), viewer, manager);
+
+            // Grabbable layer doesn't collide with the player, so the launcher can't push or lift them
+            BoomBlocksLayers.ApplyInOpenScene();
+
             EditorSceneManager.MarkSceneDirty(root.scene);
             Selection.activeGameObject = root;
 
@@ -595,7 +602,7 @@ namespace BoomBlocks {
             return go;
         }
 
-        static Material getMaterial(string name, Color color) {
+        internal static Material getMaterial(string name, Color color) {
             string path = MaterialFolder + "/" + name + ".mat";
             Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (mat == null) {
@@ -619,7 +626,7 @@ namespace BoomBlocks {
             return mat;
         }
 
-        static float findGroundHeight() {
+        internal static float findGroundHeight() {
             Physics.SyncTransforms();
             RaycastHit hit;
             if (Physics.Raycast(new Vector3(0, 50f, 0.6f), Vector3.down, out hit, 200f, ~0, QueryTriggerInteraction.Ignore)) {

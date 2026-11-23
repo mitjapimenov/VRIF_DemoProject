@@ -123,6 +123,233 @@ namespace BoomBlocks {
         }
 
         /// <summary>
+        /// Standing highscore board : "Model" holds a placeholder wooden stand that can be swapped for a custom model,
+        /// "Display" is the canvas with the score list. The root faces the player
+        /// </summary>
+        public static BoomHighscoreBoard BuildHighscoreBoard(Transform parent, Vector3 floorPosition, Vector3 viewer, BoomScoreManager manager) {
+            const int rows = 10;
+            const float boardCenterHeight = 1.45f;
+
+            GameObject root = new GameObject("HighscoreBoard");
+            root.transform.SetParent(parent, false);
+            root.transform.position = floorPosition;
+            Vector3 away = floorPosition - viewer;
+            away.y = 0f;
+            root.transform.rotation = Quaternion.LookRotation(away.sqrMagnitude > 0.001f ? away : Vector3.forward);
+
+            BoomHighscoreBoard board = root.AddComponent<BoomHighscoreBoard>();
+            board.ScoreManager = manager;
+            board.MaxEntries = rows;
+
+            // ---- Placeholder model. Front side faces the player (-Z) ----
+            GameObject model = new GameObject("Model");
+            model.transform.SetParent(root.transform, false);
+            Material wood = BoomBlocksPrototypeBuilder.getMaterial("BB_BoardWood", new Color(0.45f, 0.3f, 0.18f));
+            Material post = BoomBlocksPrototypeBuilder.getMaterial("BB_Tray", new Color(0.55f, 0.38f, 0.22f));
+            modelPart("Board", model.transform, new Vector3(0, boardCenterHeight, 0.025f), new Vector3(0.7f, 0.9f, 0.04f), wood);
+            modelPart("PostLeft", model.transform, new Vector3(-0.38f, 0.975f, 0.025f), new Vector3(0.06f, 1.95f, 0.06f), post);
+            modelPart("PostRight", model.transform, new Vector3(0.38f, 0.975f, 0.025f), new Vector3(0.06f, 1.95f, 0.06f), post);
+            modelPart("FootLeft", model.transform, new Vector3(-0.38f, 0.02f, 0.025f), new Vector3(0.08f, 0.04f, 0.4f), post);
+            modelPart("FootRight", model.transform, new Vector3(0.38f, 0.02f, 0.025f), new Vector3(0.08f, 0.04f, 0.4f), post);
+            modelPart("TopPlank", model.transform, new Vector3(0, 1.96f, 0.025f), new Vector3(0.86f, 0.05f, 0.12f), post);
+
+            // ---- Display : 600 x 800 px at 1 mm per px, just in front of the board ----
+            GameObject displayGo = new GameObject("Display", typeof(RectTransform));
+            displayGo.transform.SetParent(root.transform, false);
+            Canvas canvasComp = displayGo.AddComponent<Canvas>();
+            canvasComp.renderMode = RenderMode.WorldSpace;
+            RectTransform canvas = displayGo.GetComponent<RectTransform>();
+            Vector2 size = new Vector2(600, 800);
+            canvas.sizeDelta = size;
+            canvas.localPosition = new Vector3(0, boardCenterHeight, -0.005f);
+            canvas.localRotation = Quaternion.identity;
+            canvas.localScale = Vector3.one * 0.001f;
+
+            rounded("Background", canvas, Vector2.zero, size, PanelColor, 32);
+            TextMeshProUGUI title = text("Title", canvas, new Vector2(0, 340), new Vector2(520, 60), "HIGHSCORES", 46, AccentColor, TextAlignmentOptions.Center, FontStyles.Bold);
+            title.characterSpacing = 4;
+            image("Divider", canvas, new Vector2(0, 300), new Vector2(520, 3), DividerColor, null, false);
+
+            board.RankTexts = new TMP_Text[rows];
+            board.ScoreTexts = new TMP_Text[rows];
+            board.NameTexts = new TMP_Text[rows];
+            for (int i = 0; i < rows; i++) {
+                float y = 250 - i * 60;
+                RectTransform row = rect("Row" + (i + 1), canvas, new Vector2(0, y), new Vector2(520, 56));
+                board.RankTexts[i] = text("Rank", row, new Vector2(-225, 0), new Vector2(70, 56), (i + 1) + ".", 30, LabelColor, TextAlignmentOptions.Left, FontStyles.Bold);
+                board.ScoreTexts[i] = text("Score", row, new Vector2(-105, 0), new Vector2(170, 56), "-", 36, Color.white, TextAlignmentOptions.Left, FontStyles.Bold);
+                TextMeshProUGUI nameText = text("Name", row, new Vector2(130, 0), new Vector2(260, 56), "", 28, LabelColor, TextAlignmentOptions.Left, FontStyles.Normal);
+                // Typed names are shown as written, never as rich text tags
+                nameText.richText = false;
+                nameText.textWrappingMode = TextWrappingModes.NoWrap;
+                nameText.overflowMode = TextOverflowModes.Ellipsis;
+                board.NameTexts[i] = nameText;
+            }
+
+            board.EmptyMessage = text("EmptyMessage", canvas, new Vector2(0, -355), new Vector2(520, 40), "Finish a round to set a score!", 24, LabelColor, TextAlignmentOptions.Center, FontStyles.Normal).gameObject;
+
+            buildNameEntry(board, root.transform, canvas);
+            return board;
+        }
+
+        /// <summary>
+        /// "Add your name" button, the name field with Done / Cancel, and VRIF's keyboard below the board.
+        /// Buttons work with the laser pointer (trigger) and by poking them with a finger
+        /// </summary>
+        static void buildNameEntry(BoomHighscoreBoard board, Transform root, RectTransform canvas) {
+            // Makes the board clickable with VRIF's UI pointer
+            canvas.gameObject.AddComponent<GraphicRaycaster>();
+            canvas.gameObject.AddComponent<BNG.VRCanvas>();
+
+            const float y = -350f;
+            Color dark = new Color(0.07f, 0.08f, 0.11f);
+
+            Button add = pillButton("AddNameButton", canvas, new Vector2(0, y), new Vector2(380, 60), AccentColor, "NEW HIGHSCORE!  Add your name", 24, dark);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(add.onClick, board.OpenNameEntry);
+            board.AddNameButton = add.gameObject;
+            add.gameObject.SetActive(false);
+
+            RectTransform entry = rect("NameEntryRow", canvas, new Vector2(0, y), new Vector2(520, 60));
+            board.NameInput = nameField(entry, new Vector2(-105, 0), new Vector2(310, 56), board.MaxNameLength);
+
+            Button done = pillButton("DoneButton", entry, new Vector2(122, 0), new Vector2(110, 56), AccentColor, "Done", 24, dark);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(done.onClick, board.ConfirmName);
+            Button cancel = pillButton("CancelButton", entry, new Vector2(222, 0), new Vector2(76, 56), KeyColor, "X", 26, Color.white);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(cancel.onClick, board.CancelNameEntry);
+            board.NameEntryRow = entry.gameObject;
+            entry.gameObject.SetActive(false);
+
+            // VRIF keyboard, tilted like a desk in front of the board at hand height
+            GameObject keyboardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/BNG Framework/Prefabs/VR Keyboard.prefab");
+            if (keyboardPrefab != null) {
+                GameObject keyboard = (GameObject)PrefabUtility.InstantiatePrefab(keyboardPrefab, root);
+                keyboard.name = "Keyboard";
+                keyboard.transform.localPosition = new Vector3(0, 0.95f, -0.32f);
+                keyboard.transform.localRotation = Quaternion.Euler(35f, 0, 0);
+                keyboard.transform.localScale = Vector3.one * 0.55f;
+
+                BNG.VRKeyboard vrKeyboard = keyboard.GetComponentInChildren<BNG.VRKeyboard>(true);
+                if (vrKeyboard == null) {
+                    Debug.LogWarning("Boom Blocks : no VRKeyboard component in the keyboard prefab");
+                }
+                else {
+                    vrKeyboard.AttachedInputField = board.NameInput;
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(vrKeyboard);
+                }
+                board.Keyboard = keyboard;
+                keyboard.SetActive(false);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(keyboard.transform);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(keyboard);
+            }
+            else {
+                Debug.LogWarning("Boom Blocks : VRIF 'VR Keyboard' prefab not found, names can't be typed");
+            }
+        }
+
+        /// <summary>
+        /// Rounded button with a label. A trigger collider lets a finger poke it (VRIF UIButtonCollider)
+        /// </summary>
+        static Button pillButton(string name, Transform parent, Vector2 position, Vector2 size, Color color, string label, float fontSize, Color labelColor) {
+            Image bg = rounded(name, parent, position, size, color, size.y / 2f);
+            bg.raycastTarget = true;
+            Button button = bg.gameObject.AddComponent<Button>();
+            button.targetGraphic = bg;
+
+            text("Label", bg.transform, Vector2.zero, size, label, fontSize, labelColor, TextAlignmentOptions.Center, FontStyles.Bold);
+
+            GameObject poke = new GameObject("Key Collider");
+            poke.transform.SetParent(bg.transform, false);
+            BoxCollider col = poke.AddComponent<BoxCollider>();
+            col.isTrigger = true;
+            // Canvas units : as big as the button and 30 mm deep at 1 mm per px
+            col.size = new Vector3(size.x, size.y, 30f);
+            col.center = new Vector3(0, 0, -15f);
+            BNG.UIButtonCollider press = poke.AddComponent<BNG.UIButtonCollider>();
+            press.AnimateKey = false;
+            press.CanBeHeldDown = false;
+            return button;
+        }
+
+        /// <summary>
+        /// Legacy InputField, which is what VRIF's keyboard types into
+        /// </summary>
+        static InputField nameField(Transform parent, Vector2 position, Vector2 size, int maxLength) {
+            Image bg = rounded("NameInput", parent, position, size, new Color(1f, 1f, 1f, 0.1f), 14);
+            bg.raycastTarget = true;
+            InputField field = bg.gameObject.AddComponent<InputField>();
+            field.targetGraphic = bg;
+            field.characterLimit = maxLength;
+            field.lineType = InputField.LineType.SingleLine;
+
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+            Text placeholder = legacyText("Placeholder", bg.transform, size, "Your name", font, new Color(1f, 1f, 1f, 0.35f));
+            placeholder.fontStyle = FontStyle.Italic;
+            Text value = legacyText("Text", bg.transform, size, "", font, Color.white);
+            value.supportRichText = false;
+
+            field.textComponent = value;
+            field.placeholder = placeholder;
+            return field;
+        }
+
+        static Text legacyText(string name, Transform parent, Vector2 size, string value, Font font, Color color) {
+            RectTransform rt = rect(name, parent, Vector2.zero, size - new Vector2(32, 8));
+            Text t = rt.gameObject.AddComponent<Text>();
+            t.font = font;
+            t.fontSize = 28;
+            t.text = value;
+            t.color = color;
+            t.alignment = TextAnchor.MiddleLeft;
+            t.raycastTarget = false;
+            return t;
+        }
+
+        static void modelPart(string name, Transform parent, Vector3 position, Vector3 scale, Material material) {
+            GameObject part = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            part.name = name;
+            part.transform.SetParent(parent, false);
+            part.transform.localPosition = position;
+            part.transform.localScale = scale;
+            part.GetComponent<Renderer>().sharedMaterial = material;
+        }
+
+        /// <summary>
+        /// Where the board stands : to the player's right, beside the table, turned to face them
+        /// </summary>
+        internal static Vector3 HighscoreBoardOffset = new Vector3(1.7f, 0f, 1.1f);
+
+        [MenuItem("Boom Blocks/Add Highscore Board In Open Scene")]
+        public static void AddHighscoreBoardInOpenScene() {
+            GameObject root = GameObject.Find("BoomBlocks Prototype");
+            if (root == null) {
+                Debug.LogError("Boom Blocks : build the prototype first");
+                return;
+            }
+
+            Transform old = root.transform.Find("HighscoreBoard");
+            if (old != null) {
+                Object.DestroyImmediate(old.gameObject);
+            }
+
+            float groundY = BoomBlocksPrototypeBuilder.findGroundHeight();
+            BoomScoreManager manager = Object.FindFirstObjectByType<BoomScoreManager>(FindObjectsInactive.Include);
+            BoomHighscoreBoard board = BuildHighscoreBoard(root.transform, new Vector3(HighscoreBoardOffset.x, groundY, HighscoreBoardOffset.z), new Vector3(0, groundY + 1.6f, 0), manager);
+            Selection.activeGameObject = board.gameObject;
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(root.scene);
+            Debug.Log("Boom Blocks : highscore board added");
+        }
+
+        /// <summary>
+        /// Command line entry : Unity -batchmode -executeMethod BoomBlocks.BoomBlocksUiBuilder.AddHighscoreBoardInMitjaScene
+        /// </summary>
+        public static void AddHighscoreBoardInMitjaScene() {
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/BNG Framework/Scenes/MitjaXRScene.unity");
+            AddHighscoreBoardInOpenScene();
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
+        }
+
+        /// <summary>
         /// One progress dot per numbered step, right aligned in the header row
         /// </summary>
         internal static void BuildStepDots(BoomTutorial tutorial, RectTransform dots, int count) {

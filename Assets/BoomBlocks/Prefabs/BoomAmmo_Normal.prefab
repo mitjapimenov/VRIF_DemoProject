@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 2728658146818843310}
   - component: {fileID: 7102074420981814658}
   - component: {fileID: 7145409848306667327}
-  m_Layer: 0
+  m_Layer: 10
   m_Name: BoomAmmo_Normal
   m_TagString: Untagged
   m_Icon: {fileID: 0}

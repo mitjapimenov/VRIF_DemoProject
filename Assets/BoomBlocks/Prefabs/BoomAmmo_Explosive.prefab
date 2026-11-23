@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 8282555514428481713}
   - component: {fileID: 342882563342755450}
   - component: {fileID: 1537341567337018865}
-  m_Layer: 0
+  m_Layer: 10
   m_Name: BoomAmmo_Explosive
   m_TagString: Untagged
   m_Icon: {fileID: 0}

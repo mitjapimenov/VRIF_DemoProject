@@ -39,6 +39,11 @@ namespace BoomBlocks {
         public int Combo { get; private set; }
 
         /// <summary>
+        /// Called once when a round ends, with the final score. The highscore board listens to this
+        /// </summary>
+        public event System.Action<int> RoundEnded;
+
+        /// <summary>
         /// True while the combo multiplier is above 1 and the next score would still raise it
         /// </summary>
         public bool ComboActive {
@@ -141,6 +146,9 @@ namespace BoomBlocks {
             }
             else if (Time.time - roundEndingTime >= GameOverDelay) {
                 IsGameOver = true;
+                if (RoundEnded != null) {
+                    RoundEnded(Score);
+                }
             }
         }
 

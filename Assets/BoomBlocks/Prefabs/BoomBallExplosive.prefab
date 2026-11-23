@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: 8872199495551847472}
   - component: {fileID: 6681713553088957046}
   - component: {fileID: 1319986647672331224}
-  m_Layer: 0
+  m_Layer: 10
   m_Name: BoomBallExplosive
   m_TagString: Untagged
   m_Icon: {fileID: 0}
