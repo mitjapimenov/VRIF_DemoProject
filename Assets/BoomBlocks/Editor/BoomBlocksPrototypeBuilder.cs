@@ -183,8 +183,8 @@ namespace BoomBlocks {
 
             Grabbable grab = launcher.AddComponent<Grabbable>();
             grab.GrabMechanic = GrabType.Snap;
-            // Click grip once to pick up, again to drop
-            grab.Grabtype = HoldType.Toggle;
+            // Squeeze and hold grip to keep it in the hand, let go to drop
+            grab.Grabtype = HoldType.HoldDown;
 
             BoomLauncher weapon = launcher.AddComponent<BoomLauncher>();
             weapon.Capacity = 1;
@@ -574,7 +574,7 @@ namespace BoomBlocks {
             return mat;
         }
 
-        static void copyWeaponSounds(RaycastWeapon weapon) {
+        static void copyWeaponSounds(BoomLauncher weapon) {
             GameObject pistol = AssetDatabase.LoadAssetAtPath<GameObject>(PistolPrefabPath);
             RaycastWeapon source = pistol != null ? pistol.GetComponentInChildren<RaycastWeapon>(true) : null;
             if (source == null) {
@@ -584,6 +584,21 @@ namespace BoomBlocks {
             weapon.GunShotSound = source.GunShotSound;
             weapon.GunShotVolume = 0.5f;
             weapon.EmptySound = source.EmptySound;
+            AssignLauncherSounds(weapon);
+        }
+
+        /// <summary>
+        /// Own fire and load sounds from Assets/Sounds, when they are in the project
+        /// </summary>
+        internal static void AssignLauncherSounds(BoomLauncher weapon) {
+            AudioClip fire = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sounds/FireSound.wav");
+            AudioClip reload = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sounds/ReloadSound.wav");
+            if (fire != null) {
+                weapon.GunShotSound = fire;
+            }
+            if (reload != null) {
+                weapon.LoadSound = reload;
+            }
         }
 
         static GameObject createPrimitive(PrimitiveType type, string name, Transform parent, Vector3 localPosition, Vector3 localScale, Material mat, bool keepCollider, Quaternion? localRotation = null) {

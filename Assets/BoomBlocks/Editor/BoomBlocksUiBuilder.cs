@@ -82,6 +82,7 @@ namespace BoomBlocks {
             tutorial.ExplosiveAnchor = explosiveAnchor;
             tutorial.TargetAnchor = targetAnchor;
             tutorial.StepDoneSound = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/BNG Framework/Sounds/switch_on.wav");
+            AssignTutorialSounds(tutorial);
 
             // 760 x 500 px at 1 mm per px. Texts come from the BoomTutorial component, the values here are only placeholders
             const float width = 672f;
@@ -119,6 +120,7 @@ namespace BoomBlocks {
             next.gameObject.SetActive(false);
 
             tutorial.Arrow = createArrow(root.transform);
+            BuildIntroPopup(tutorial, root.transform, canvas);
             return tutorial;
         }
 
@@ -350,6 +352,15 @@ namespace BoomBlocks {
         }
 
         /// <summary>
+        /// Screen change, arrow and completion sounds from Assets/Sounds, when they are in the project
+        /// </summary>
+        internal static void AssignTutorialSounds(BoomTutorial tutorial) {
+            tutorial.ScreenChangeSound = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sounds/TutorialScreenChange.ogg");
+            tutorial.ArrowSound = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sounds/TutorialPointyArrowSound.ogg");
+            tutorial.CompleteSound = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sounds/TutorialCompleteSound.ogg");
+        }
+
+        /// <summary>
         /// One progress dot per numbered step, right aligned in the header row
         /// </summary>
         internal static void BuildStepDots(BoomTutorial tutorial, RectTransform dots, int count) {
@@ -369,6 +380,12 @@ namespace BoomBlocks {
         /// Pill behind the B keycap and its label that fills up while B is held. Built behind the key and label
         /// </summary>
         public static void BuildSkipProgress(BoomTutorial tutorial, Transform skipHint, Vector2 keyPosition) {
+            buildSkipPill(skipHint, keyPosition, out GameObject root, out RectTransform fill);
+            tutorial.SkipProgress = root;
+            tutorial.SkipProgressFill = fill;
+        }
+
+        static void buildSkipPill(Transform skipHint, Vector2 keyPosition, out GameObject progress, out RectTransform progressFill) {
             const float width = 300f;
             const float height = 50f;
 
@@ -385,9 +402,72 @@ namespace BoomBlocks {
             Image fill = rounded("Fill", root, new Vector2(-width / 2f, 0), new Vector2(width, height), new Color(AccentColor.r, AccentColor.g, AccentColor.b, 0.4f), height / 2f);
             fill.rectTransform.pivot = new Vector2(0f, 0.5f);
 
-            tutorial.SkipProgress = root.gameObject;
-            tutorial.SkipProgressFill = fill.rectTransform;
+            progress = root.gameObject;
+            progressFill = fill.rectTransform;
             root.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Small popup shown after the start delay : "A to start the tutorial", and "B hold to skip" with its own fill bar.
+        /// Placed where the tutorial panel is
+        /// </summary>
+        public static void BuildIntroPopup(BoomTutorial tutorial, Transform tutorialRoot, Transform panel) {
+            Transform old = tutorialRoot.Find("IntroPopup");
+            if (old != null) {
+                Object.DestroyImmediate(old.gameObject);
+            }
+
+            Vector2 size = new Vector2(560, 230);
+            GameObject go = new GameObject("IntroPopup", typeof(RectTransform));
+            go.transform.SetParent(tutorialRoot, false);
+            go.AddComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            RectTransform canvas = go.GetComponent<RectTransform>();
+            canvas.sizeDelta = size;
+            canvas.position = panel.position;
+            canvas.rotation = panel.rotation;
+            canvas.localScale = Vector3.one * 0.001f;
+
+            Color dark = new Color(0.07f, 0.08f, 0.11f);
+            rounded("Background", canvas, Vector2.zero, size, PanelColor, 32);
+
+            TextMeshProUGUI heading = text("Heading", canvas, new Vector2(0, 75), new Vector2(480, 36), "BOOM BLOCKS", 22, AccentColor, TextAlignmentOptions.Center, FontStyles.Bold);
+            heading.characterSpacing = 6;
+
+            keyCap("KeyA", canvas, new Vector2(-195, 15), "A", AccentColor, dark);
+            text("StartLabel", canvas, new Vector2(40, 15), new Vector2(430, 60), "to start the tutorial", 34, Color.white, TextAlignmentOptions.Left, FontStyles.Bold);
+
+            RectTransform skip = rect("SkipHint", canvas, Vector2.zero, size);
+            Vector2 keyB = new Vector2(-215, -62);
+            keyCap("KeyB", skip, keyB, "B", KeyColor, Color.white);
+            text("Label", skip, new Vector2(keyB.x + 32 + 150, keyB.y), new Vector2(300, 40), "Hold to skip tutorial", 24, LabelColor, TextAlignmentOptions.Left, FontStyles.Normal);
+            buildSkipPill(skip, keyB, out GameObject progress, out RectTransform fill);
+
+            tutorial.IntroPopup = go;
+            tutorial.IntroSkipProgress = progress;
+            tutorial.IntroSkipProgressFill = fill;
+        }
+
+        [MenuItem("Boom Blocks/Add Tutorial Intro Popup In Open Scene")]
+        public static void AddIntroPopupInOpenScene() {
+            BoomTutorial tutorial = Object.FindFirstObjectByType<BoomTutorial>(FindObjectsInactive.Include);
+            if (tutorial == null || tutorial.Panel == null) {
+                Debug.LogError("Boom Blocks : no tutorial panel in the open scene");
+                return;
+            }
+
+            BuildIntroPopup(tutorial, tutorial.transform, tutorial.Panel.transform);
+            EditorUtility.SetDirty(tutorial);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(tutorial.gameObject.scene);
+            Debug.Log("Boom Blocks : tutorial intro popup added");
+        }
+
+        /// <summary>
+        /// Command line entry : Unity -batchmode -executeMethod BoomBlocks.BoomBlocksUiBuilder.AddIntroPopupInMitjaScene
+        /// </summary>
+        public static void AddIntroPopupInMitjaScene() {
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/BNG Framework/Scenes/MitjaXRScene.unity");
+            AddIntroPopupInOpenScene();
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
         }
 
         [MenuItem("Boom Blocks/Add Hold To Skip In Open Scene")]
